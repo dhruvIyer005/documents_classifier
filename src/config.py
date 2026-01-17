@@ -18,7 +18,7 @@ DATA_DIR.mkdir(exist_ok=True)
 
 # Model
 MODEL_NAME = "nlpaueb/legal-bert-base-uncased"
-MODEL_PATH = MODEL_DIR / "legal_bert_classifier"
+MODEL_PATH = MODEL_DIR / "."
 NUM_LABELS = 5
 LABELS = ["ACM", "IEEE", "Springer", "Legal", "Compliance"]
 LABEL2ID = {label: idx for idx, label in enumerate(LABELS)}
