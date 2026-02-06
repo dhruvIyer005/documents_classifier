@@ -1,6 +1,6 @@
 """
-app.py - Flask web application for document classification
-Upload N PDFs → Process → Display results
+app.py - Flask web application for multi-model document classification
+Upload N PDFs → Run 3 models → Display comparison results
 """
 
 import os
@@ -14,22 +14,22 @@ from io import StringIO
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from classifier import create_classifier
+from multi_classifier import create_multi_classifier
 from config import LABELS, OUTPUT_DIR
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max
 
-# Load classifier
+# Load multi-model classifier
 classifier = None
 
 
 def init_classifier():
-    """Initialize classifier on startup"""
+    """Initialize multi-model classifier on startup"""
     global classifier
     try:
-        classifier = create_classifier()
-        print("[✓] Classifier loaded")
+        classifier = create_multi_classifier()
+        print("[✓] Multi-Model Classifier loaded (Legal-BERT, DistilBERT, SciBERT)")
         return True
     except Exception as e:
         print(f"[✗] Failed to load classifier: {e}")
@@ -44,7 +44,7 @@ def index():
 
 @app.route("/api/classify", methods=["POST"])
 def classify():
-    """Classify uploaded PDFs"""
+    """Classify uploaded PDFs with all 3 models"""
     
     if classifier is None:
         return jsonify({"success": False, "error": "Model not loaded"}), 500
@@ -67,14 +67,16 @@ def classify():
             temp_path = OUTPUT_DIR / file.filename
             file.save(str(temp_path))
             
-            # Classify
-            label, confidence = classifier.predict(str(temp_path))
+            # Get batch results from multi-model classifier
+            batch_results = classifier.batch_predict_all([str(temp_path)])
             
-            results.append({
-                "filename": file.filename,
-                "label": label,
-                "confidence": f"{confidence:.2%}"
-            })
+            if batch_results and "predictions" in batch_results[0]:
+                result_item = batch_results[0]
+                results.append({
+                    "filename": file.filename,
+                    "true_label": result_item.get("true_label", "Unknown"),
+                    "models": result_item["predictions"]
+                })
             
             # Clean up
             temp_path.unlink()
@@ -82,8 +84,6 @@ def classify():
         except Exception as e:
             results.append({
                 "filename": file.filename,
-                "label": "Error",
-                "confidence": "N/A",
                 "error": str(e)
             })
     
@@ -102,16 +102,24 @@ def export():
     if not data:
         return jsonify({"success": False, "error": "No data to export"}), 400
     
-    # Create CSV
+    # Create CSV with multi-model results
     output = StringIO()
-    writer = csv.DictWriter(output, fieldnames=["Filename", "Label", "Confidence"])
+    fieldnames = ["Filename", "True Label", "Legal-BERT", "Legal-BERT Conf", 
+                  "DistilBERT", "DistilBERT Conf", "SciBERT", "SciBERT Conf"]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
     
     for item in data:
+        models = item.get("models", {})
         writer.writerow({
             "Filename": item.get("filename"),
-            "Label": item.get("label"),
-            "Confidence": item.get("confidence")
+            "True Label": item.get("true_label"),
+            "Legal-BERT": models.get("Legal-BERT", {}).get("label", "N/A"),
+            "Legal-BERT Conf": models.get("Legal-BERT", {}).get("confidence", "N/A"),
+            "DistilBERT": models.get("DistilBERT", {}).get("label", "N/A"),
+            "DistilBERT Conf": models.get("DistilBERT", {}).get("confidence", "N/A"),
+            "SciBERT": models.get("SciBERT", {}).get("label", "N/A"),
+            "SciBERT Conf": models.get("SciBERT", {}).get("confidence", "N/A"),
         })
     
     csv_content = output.getvalue()
@@ -140,7 +148,7 @@ def server_error(e):
 
 if __name__ == "__main__":
     print("="*60)
-    print("SciBERT Document Classifier - Flask App")
+    print("Multi-Model Document Classifier - Flask App")
     print("="*60)
     
     # Initialize classifier

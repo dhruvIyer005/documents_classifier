@@ -1,218 +1,266 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SciBERT Document Classifier</title>
+    <title>Multi-Model Document Classifier</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             padding: 20px;
         }
-        
+
         .container {
+            max-width: 1200px;
+            margin: 0 auto;
             background: white;
             border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 800px;
-            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .model-info {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .model-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .content {
             padding: 40px;
         }
-        
-        h1 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 28px;
-        }
-        
-        .subtitle {
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
-        
-        .upload-area {
+
+        .upload-section {
             border: 2px dashed #667eea;
             border-radius: 8px;
             padding: 40px;
             text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            background: #f8f9ff;
-            margin-bottom: 20px;
+            background: #f9f9f9;
+            margin-bottom: 30px;
         }
-        
-        .upload-area:hover {
+
+        .upload-section:hover {
             border-color: #764ba2;
-            background: #f0f2ff;
+            background: #f0f0f0;
         }
-        
-        .upload-area.dragover {
-            border-color: #764ba2;
-            background: #e8e9ff;
-        }
-        
-        .upload-icon {
-            font-size: 48px;
-            margin-bottom: 10px;
-        }
-        
-        .upload-text {
-            color: #667eea;
-            font-size: 16px;
-            font-weight: 500;
-        }
-        
-        .upload-hint {
-            color: #999;
-            font-size: 12px;
-            margin-top: 8px;
-        }
-        
-        input[type="file"] {
+
+        .upload-section input[type="file"] {
             display: none;
         }
-        
-        .file-list {
-            margin-bottom: 20px;
+
+        .upload-label {
+            cursor: pointer;
+            font-size: 16px;
+            color: #667eea;
+            font-weight: 600;
+            display: block;
         }
-        
+
+        .upload-label:hover {
+            color: #764ba2;
+        }
+
+        .file-list {
+            margin: 20px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
         .file-item {
-            background: #f5f5f5;
+            background: white;
             padding: 12px;
+            margin: 8px 0;
             border-radius: 6px;
-            margin-bottom: 8px;
+            border-left: 4px solid #667eea;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        
-        .file-name {
-            color: #333;
-            font-size: 14px;
-        }
-        
-        .remove-file {
-            background: #ff4757;
+
+        .file-item .remove {
+            background: #ff6b6b;
             color: white;
             border: none;
-            padding: 6px 12px;
+            padding: 4px 8px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 12px;
-            transition: background 0.3s;
         }
-        
-        .remove-file:hover {
-            background: #ff3838;
-        }
-        
-        .button-group {
+
+        .buttons {
             display: flex;
             gap: 10px;
-            margin-bottom: 20px;
+            justify-content: center;
         }
-        
-        button {
-            flex: 1;
-            padding: 12px 24px;
-            font-size: 16px;
+
+        .btn {
+            padding: 12px 30px;
             border: none;
             border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
-            font-weight: 500;
         }
-        
-        .btn-classify {
+
+        .btn-primary {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
         }
-        
-        .btn-classify:hover:not(:disabled) {
+
+        .btn-primary:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
         }
-        
-        .btn-classify:disabled {
+
+        .btn-primary:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
-        
-        .btn-select {
-            background: #e0e0e0;
+
+        .btn-secondary {
+            background: #f0f0f0;
             color: #333;
         }
-        
-        .btn-select:hover {
-            background: #d0d0d0;
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
         }
-        
-        .btn-export {
-            background: #2ed573;
-            color: white;
+
+        .results-section {
+            margin-top: 40px;
         }
-        
-        .btn-export:hover {
-            background: #26de81;
+
+        .results-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #333;
         }
-        
-        .results {
-            margin-top: 30px;
+
+        .document-result {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
         }
-        
-        .result-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        
-        .result-table th,
-        .result-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
-        .result-table th {
-            background: #f5f5f5;
+
+        .doc-name {
+            font-size: 16px;
             font-weight: 600;
             color: #333;
+            margin-bottom: 15px;
         }
-        
-        .result-table tr:hover {
-            background: #fafafa;
+
+        .true-label {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-right: 10px;
         }
-        
-        .label {
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .comparison-table th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .comparison-table td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .comparison-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .model-name {
             font-weight: 600;
             color: #667eea;
         }
-        
-        .confidence {
-            color: #999;
-            font-size: 14px;
+
+        .label-badge {
+            display: inline-block;
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
         }
-        
+
+        .confidence {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .match {
+            color: #4caf50;
+            font-weight: 600;
+        }
+
+        .mismatch {
+            color: #f44336;
+            font-weight: 600;
+        }
+
         .loading {
             display: none;
             text-align: center;
-            margin: 20px 0;
+            padding: 20px;
         }
-        
+
         .spinner {
-            border: 4px solid #f0f0f0;
+            border: 4px solid #f3f3f3;
             border-top: 4px solid #667eea;
             border-radius: 50%;
             width: 40px;
@@ -220,214 +268,221 @@
             animation: spin 1s linear infinite;
             margin: 0 auto;
         }
-        
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
-        
+
         .error {
-            background: #ffe0e0;
-            color: #c33;
+            background: #ffebee;
+            color: #c62828;
             padding: 12px;
             border-radius: 6px;
             margin-bottom: 20px;
-            display: none;
         }
-        
+
         .success {
-            background: #e0ffe0;
-            color: #3c3;
+            background: #e8f5e9;
+            color: #2e7d32;
             padding: 12px;
             border-radius: 6px;
             margin-bottom: 20px;
-            display: none;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
-        <h1>📄 SciBERT Classifier</h1>
-        <p class="subtitle">Upload PDFs and get instant classification</p>
-        
-        <div class="error" id="error"></div>
-        <div class="success" id="success"></div>
-        
-        <div class="upload-area" id="uploadArea">
-            <div class="upload-icon">📤</div>
-            <div class="upload-text">Click to upload or drag files here</div>
-            <div class="upload-hint">PDF files (max 500MB total)</div>
-            <input type="file" id="fileInput" multiple accept=".pdf">
+        <div class="header">
+            <h1>📄 Multi-Model Document Classifier</h1>
+            <p>Upload PDFs and compare predictions from 3 models</p>
+            <div class="model-info">
+                <div class="model-badge">🏛️ Legal-BERT</div>
+                <div class="model-badge">🤖 DistilBERT</div>
+                <div class="model-badge">🔬 SciBERT</div>
+            </div>
         </div>
-        
-        <div class="file-list" id="fileList"></div>
-        
-        <div class="button-group">
-            <button class="btn-select" onclick="document.getElementById('fileInput').click()">
-                ➕ Select Files
-            </button>
-            <button class="btn-classify" id="classifyBtn" onclick="classifyFiles()" disabled>
-                🚀 Classify
-            </button>
-        </div>
-        
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Classifying documents...</p>
-        </div>
-        
-        <div class="results" id="results" style="display: none;">
-            <h2>Results</h2>
-            <table class="result-table" id="resultTable">
-                <thead>
-                    <tr>
-                        <th>Filename</th>
-                        <th>Label</th>
-                        <th>Confidence</th>
-                    </tr>
-                </thead>
-                <tbody id="resultBody"></tbody>
-            </table>
-            <button class="btn-export" onclick="exportResults()">📥 Export CSV</button>
+
+        <div class="content">
+            <div id="messageBox"></div>
+
+            <div class="upload-section">
+                <label for="fileInput" class="upload-label">
+                    📤 Click to upload or drag PDFs here
+                </label>
+                <input type="file" id="fileInput" multiple accept=".pdf">
+                <div class="file-list" id="fileList"></div>
+            </div>
+
+            <div class="buttons">
+                <button class="btn btn-primary" id="classifyBtn" disabled>Classify Documents</button>
+                <button class="btn btn-secondary" id="exportBtn" disabled>Export Results</button>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p style="margin-top: 15px;">Processing documents with 3 models...</p>
+            </div>
+
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <div class="results-title">Comparison Results</div>
+                <div id="resultsContainer"></div>
+            </div>
         </div>
     </div>
-    
+
     <script>
-        let selectedFiles = [];
-        
-        // Upload area
-        const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
-        
-        uploadArea.addEventListener('click', () => fileInput.click());
-        uploadArea.addEventListener('dragover', (e) => {
+        const fileList = document.getElementById('fileList');
+        const classifyBtn = document.getElementById('classifyBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const loading = document.getElementById('loading');
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const messageBox = document.getElementById('messageBox');
+        let currentResults = [];
+
+        fileInput.addEventListener('change', updateFileList);
+        document.querySelector('.upload-section').addEventListener('dragover', (e) => {
             e.preventDefault();
-            uploadArea.classList.add('dragover');
+            document.querySelector('.upload-section').style.borderColor = '#764ba2';
         });
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
+        document.querySelector('.upload-section').addEventListener('dragleave', () => {
+            document.querySelector('.upload-section').style.borderColor = '#667eea';
         });
-        uploadArea.addEventListener('drop', (e) => {
+        document.querySelector('.upload-section').addEventListener('drop', (e) => {
             e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const files = Array.from(e.dataTransfer.files);
-            selectedFiles = files.filter(f => f.type === 'application/pdf');
+            fileInput.files = e.dataTransfer.files;
             updateFileList();
+            document.querySelector('.upload-section').style.borderColor = '#667eea';
         });
-        
-        fileInput.addEventListener('change', (e) => {
-            selectedFiles = Array.from(e.target.files);
-            updateFileList();
-        });
-        
+
         function updateFileList() {
-            const fileList = document.getElementById('fileList');
             fileList.innerHTML = '';
-            
-            selectedFiles.forEach((file, index) => {
-                const item = document.createElement('div');
-                item.className = 'file-item';
-                item.innerHTML = `
-                    <span class="file-name">${file.name}</span>
-                    <button class="remove-file" onclick="removeFile(${index})">Remove</button>
+            classifyBtn.disabled = fileInput.files.length === 0;
+            Array.from(fileInput.files).forEach((file, idx) => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                div.innerHTML = `
+                    <span>${file.name}</span>
+                    <button class="remove" onclick="removeFile(${idx})">Remove</button>
                 `;
-                fileList.appendChild(item);
+                fileList.appendChild(div);
             });
-            
-            document.getElementById('classifyBtn').disabled = selectedFiles.length === 0;
         }
-        
-        function removeFile(index) {
-            selectedFiles.splice(index, 1);
+
+        function removeFile(idx) {
+            const dt = new DataTransfer();
+            Array.from(fileInput.files).forEach((file, i) => {
+                if (i !== idx) dt.items.add(file);
+            });
+            fileInput.files = dt.files;
             updateFileList();
         }
-        
-        async function classifyFiles() {
-            if (selectedFiles.length === 0) return;
-            
-            const loading = document.getElementById('loading');
-            const results = document.getElementById('results');
+
+        classifyBtn.addEventListener('click', async () => {
+            const formData = new FormData();
+            Array.from(fileInput.files).forEach(file => {
+                formData.append('files', file);
+            });
+
             loading.style.display = 'block';
-            results.style.display = 'none';
-            
+            messageBox.innerHTML = '';
+
             try {
-                const formData = new FormData();
-                selectedFiles.forEach(file => {
-                    formData.append('files', file);
-                });
-                
                 const response = await fetch('/api/classify', {
                     method: 'POST',
                     body: formData
                 });
-                
                 const data = await response.json();
+
                 loading.style.display = 'none';
-                
+
                 if (data.success) {
+                    currentResults = data.results;
                     displayResults(data.results);
-                    showSuccess(`Successfully classified ${data.count} documents`);
+                    exportBtn.disabled = false;
+                    showMessage(`✓ Processed ${data.count} documents`, 'success');
                 } else {
-                    showError(data.error || 'Classification failed');
+                    showMessage(`✗ ${data.error}`, 'error');
                 }
             } catch (error) {
                 loading.style.display = 'none';
-                showError(error.message || 'Error during classification');
+                showMessage(`✗ Error: ${error.message}`, 'error');
             }
-        }
-        
+        });
+
         function displayResults(results) {
-            const resultBody = document.getElementById('resultBody');
-            resultBody.innerHTML = '';
-            
+            resultsContainer.innerHTML = '';
             results.forEach(result => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="file-name">${result.filename}</td>
-                    <td><span class="label">${result.label}</span></td>
-                    <td><span class="confidence">${result.confidence}</span></td>
+                const html = `
+                    <div class="document-result">
+                        <div class="doc-name">
+                            ${result.filename}
+                            ${result.true_label ? `<span class="true-label">True: ${result.true_label}</span>` : ''}
+                        </div>
+                        <table class="comparison-table">
+                            <thead>
+                                <tr>
+                                    <th>Model</th>
+                                    <th>Prediction</th>
+                                    <th>Confidence</th>
+                                    <th>Hit/Miss</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${Object.entries(result.models || {}).map(([modelName, pred]) => `
+                                    <tr>
+                                        <td class="model-name">${modelName}</td>
+                                        <td><span class="label-badge">${pred.label}</span></td>
+                                        <td class="confidence">${(pred.confidence * 100).toFixed(1)}%</td>
+                                        <td>
+                                            ${result.true_label ? (
+                        pred.label === result.true_label
+                            ? '<span class="match">✓ HIT</span>'
+                            : '<span class="mismatch">✗ MISS</span>'
+                    ) : '-'}
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
                 `;
-                resultBody.appendChild(row);
+                resultsContainer.innerHTML += html;
             });
-            
-            document.getElementById('results').style.display = 'block';
-            window.lastResults = results;
+            resultsSection.style.display = 'block';
         }
-        
-        async function exportResults() {
-            if (!window.lastResults) return;
-            
+
+        exportBtn.addEventListener('click', async () => {
             const response = await fetch('/api/export', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ results: window.lastResults })
+                body: JSON.stringify({ results: currentResults })
             });
-            
             const data = await response.json();
-            
+
             if (data.success) {
                 const blob = new Blob([data.csv], { type: 'text/csv' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'classifications.csv';
+                a.download = 'classification_results.csv';
                 a.click();
+                showMessage('✓ Exported to CSV', 'success');
             }
-        }
-        
-        function showError(msg) {
-            const el = document.getElementById('error');
-            el.textContent = msg;
-            el.style.display = 'block';
-            setTimeout(() => { el.style.display = 'none'; }, 5000);
-        }
-        
-        function showSuccess(msg) {
-            const el = document.getElementById('success');
-            el.textContent = msg;
-            el.style.display = 'block';
-            setTimeout(() => { el.style.display = 'none'; }, 5000);
+        });
+
+        function showMessage(msg, type) {
+            messageBox.innerHTML = `<div class="${type}">${msg}</div>`;
         }
     </script>
 </body>
+
 </html>

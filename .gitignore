@@ -35,6 +35,7 @@ env/
 
 # Models and data
 models/
+data/
 *.csv
 
 # Outputs
