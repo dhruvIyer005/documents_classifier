@@ -33,15 +33,24 @@ env/
 *~
 .DS_Store
 
-# Models and data
+# Models - too large for Git (~500MB+)
 models/
-data/
-*.csv
+*.pth
+*.safetensors
+*.bin
 
-# Outputs
+# Training data - large PDFs
+data/
+
+# Outputs and logs
 outputs/
 logs/
 *.log
+training_*.txt
+
+# Temporary files
+*.csv
+*.tmp
 
 # Testing
 .pytest_cache/
@@ -55,3 +64,8 @@ htmlcov/
 # Environment variables
 .env
 .env.local
+.env*.local
+
+# OS
+.DS_Store
+Thumbs.db

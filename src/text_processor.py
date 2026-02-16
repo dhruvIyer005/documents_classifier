@@ -8,7 +8,13 @@ from typing import List, Tuple, Optional
 import fitz  # PyMuPDF
 import torch
 
-from config import CHUNK_SIZE, CHUNK_OVERLAP, MAX_LENGTH, MIN_TEXT_LENGTH, MAX_PAGES
+from config import config
+
+CHUNK_SIZE = config.CHUNK_SIZE
+CHUNK_OVERLAP = config.CHUNK_OVERLAP
+MAX_LENGTH = config.MAX_LENGTH
+MIN_TEXT_LENGTH = config.MIN_TEXT_LENGTH
+MAX_PAGES = config.MAX_PAGES
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +22,7 @@ logger = logging.getLogger(__name__)
 class TextProcessor:
     """Process PDFs: extract, clean, and chunk for transformers."""
 
-    def __init__(self, tokenizer):
+    def __init__(self, tokenizer=None):
         self.tokenizer = tokenizer
         self.chunk_size = CHUNK_SIZE
         self.chunk_overlap = CHUNK_OVERLAP

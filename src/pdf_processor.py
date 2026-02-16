@@ -20,6 +20,7 @@ class PDFTextExtractor:
         self.max_pages = config.MAX_PAGES
         self.chunk_size = config.CHUNK_SIZE
         self.chunk_overlap = config.CHUNK_OVERLAP
+        self.extract_n_chars = 10000  # Limit text to 10000 characters
         
     def extract_text(self, pdf_path: str) -> Optional[str]:
         """

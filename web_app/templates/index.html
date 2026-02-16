@@ -342,30 +342,102 @@
             transition: width 0.5s ease;
         }
 
-        .top-predictions {
-            font-size: 12px;
-            color: #666;
-            margin-top: 15px;
+        .models-comparison {
+            margin-top: 20px;
             padding-top: 15px;
-            border-top: 1px solid #e0e0e0;
+            border-top: 2px solid #e0e0e0;
         }
 
-        .prediction-item {
+        .models-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .model-prediction {
             display: flex;
+            align-items: center;
             justify-content: space-between;
+            padding: 10px;
             margin-bottom: 8px;
-            font-size: 13px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
         }
 
-        .prediction-label {
-            font-weight: 500;
+        .model-prediction.hit {
+            background: #e8f5e9;
+            border-left-color: #4CAF50;
+        }
+
+        .model-prediction.miss {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+
+        .model-prediction.unknown {
+            background: #f5f5f5;
+            border-left-color: #9E9E9E;
+        }
+
+        .model-info {
+            flex: 1;
+        }
+
+        .model-name {
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 3px;
+        }
+
+        .model-label {
+            font-size: 14px;
+            font-weight: 700;
             color: #333;
             text-transform: capitalize;
         }
 
-        .prediction-conf {
+        .model-status {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            font-size: 11px;
+        }
+
+        .model-confidence {
+            font-weight: 700;
             color: #667eea;
+            margin-bottom: 3px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 10px;
             font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-badge.hit {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .status-badge.miss {
+            background: #f44336;
+            color: white;
+        }
+
+        .status-badge.unknown {
+            background: #9E9E9E;
+            color: white;
         }
 
         .error-message {
@@ -634,35 +706,57 @@
             card.className = 'result-card ' + (result.status === 'success' ? 'success' : 'error');
 
             if (result.status === 'success') {
-                // Check if confidence is low (document might not match any category well)
-                const isLowConfidence = result.confidence < 50;
-                const warningMsg = isLowConfidence ?
-                    '<div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin-top: 15px; border-radius: 5px; font-size: 13px; color: #856404;"><strong>⚠️ Low Confidence:</strong> Document may not match any of the standard categories. Please verify or upload a proper document.</div>'
-                    : '';
+                // Extract ground truth from filename (e.g., "acm7.pdf" -> "acm", "compliance 4.pdf" -> "compliance")
+                const match = result.filename.match(/^([a-z]+)/i);
+                const groundTruth = match ? match[1].toLowerCase() : null;
+
+                // Validate ground truth is one of our labels
+                const validLabels = ['acm', 'compliance', 'ieee', 'legal', 'springer'];
+                const isValidGroundTruth = validLabels.includes(groundTruth);
 
                 // Generate mini summary based on category
                 const summary = generateSummary(result.prediction, result.confidence);
 
+                // Generate models comparison HTML
+                const modelsHTML = result.all_models ? `
+                    <div class="models-comparison">
+                        <div class="models-title">📊 Model Predictions</div>
+                        ${result.all_models.map(model => {
+                            // Determine status: HIT, MISS, or UNKNOWN (no labeled ground truth)
+                            let statusClass, statusText;
+                            if (!isValidGroundTruth) {
+                                statusClass = 'unknown';
+                                statusText = 'UNKNOWN';
+                            } else {
+                                const isHit = model.label === groundTruth;
+                                statusClass = isHit ? 'hit' : 'miss';
+                                statusText = isHit ? 'HIT' : 'MISS';
+                            }
+                            return `
+                                <div class="model-prediction ${statusClass}">
+                                    <div class="model-info">
+                                        <div class="model-name">${model.model}</div>
+                                        <div class="model-label">${model.label}</div>
+                                    </div>
+                                    <div class="model-status">
+                                        <div class="model-confidence">${model.confidence}%</div>
+                                        <span class="status-badge ${statusClass}">${statusText}</span>
+                                    </div>
+                                </div>
+                            `;
+                }).join('')}
+                    </div>
+                ` : '';
+
                 card.innerHTML = `
-                    <div class="result-filename">📄 ${result.filename}</div>
+                    <div class="result-filename">📄 ${result.filename}${!isValidGroundTruth ? ' <span style="color: #999; font-size: 12px;">(unlabeled)</span>' : ''}</div>
                     <div class="result-label">${result.prediction}</div>
                     <div class="result-confidence">Confidence: <strong>${result.confidence}%</strong></div>
                     <div class="confidence-bar">
                         <div class="confidence-fill" style="width: ${result.confidence}%"></div>
                     </div>
-                    ${result.top_predictions ? `
-                        <div class="top-predictions">
-                            <strong>Top Predictions:</strong>
-                            ${result.top_predictions.map(p => `
-                                <div class="prediction-item">
-                                    <span class="prediction-label">${p.label}</span>
-                                    <span class="prediction-conf">${p.confidence}%</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    ` : ''}
+                    ${modelsHTML}
                     ${summary}
-                    ${warningMsg}
                 `;
             } else {
                 card.innerHTML = `

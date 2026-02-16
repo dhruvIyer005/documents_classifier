@@ -1,8 +1,23 @@
+# Document Classification System
+# Python 3.12+ required
+# Install: pip install -r requirements.txt
+
+# Core ML/DL Stack
 torch>=2.2.0
 transformers>=4.36.0
-pymupdf>=1.24.0
-flask>=3.0.0
-scikit-learn>=1.4.0
-numpy>=1.24.0
-pandas>=2.0.0
+tokenizers>=0.15.0
 accelerate>=0.26.0
+evaluate>=0.4.1
+
+# PDF & Text Processing
+PyMuPDF>=1.24.0
+scikit-learn>=1.4.0
+numpy>=1.26.0
+pandas>=2.1.0
+
+# Web Framework
+Flask>=3.0.0
+Flask-CORS>=4.0.0
+
+# Utilities
+python-dotenv>=1.0.0

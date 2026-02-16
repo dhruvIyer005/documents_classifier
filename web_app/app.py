@@ -18,7 +18,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 # Import your updated modules
 try:
-    from predict_batch import DocumentClassifierPredictor
+    from multi_classifier import MultiModelClassifier
     from config import config
     from pdf_processor import PDFTextExtractor
     ML_AVAILABLE = True
@@ -33,41 +33,42 @@ app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size (bat
 
 class WebDocumentPredictor:
     def __init__(self):
-        self.predictor = None
+        self.classifier = None
         self.pdf_extractor = None
         self.load_model()
     
     def load_model(self):
-        """Load the trained SciBERT model"""
+        """Load the trained models"""
         try:
-            # Check for trained model
-            model_path = Path(__file__).parent.parent / "models" / "scibert_classifier"
-            
-            if model_path.exists():
-                print(f"Loading model from: {model_path}")
-                self.predictor = DocumentClassifierPredictor(str(model_path))
-                print("[OK] Predictor loaded successfully")
-            else:
-                print(f"[WARN] Trained model not found at {model_path}")
-                print("[WARN] Download SciBERT from HuggingFace")
-                self.predictor = DocumentClassifierPredictor()
-
-                
-            # Initialize PDF extractor
+            # Initialize PDF extractor first
             self.pdf_extractor = PDFTextExtractor()
             print("PDF extractor initialized")
             
+            # Load multi-model classifier
+            try:
+                self.classifier = MultiModelClassifier()
+                print("[OK] Multi-model classifier loaded successfully")
+            except Exception as e:
+                print(f"[ERROR] Error loading classifier: {e}")
+                import traceback
+                traceback.print_exc()
+                self.classifier = None
+            
         except Exception as e:
-            print(f"[ERROR] Error loading model: {e}")
+            print(f"[ERROR] Error in load_model: {e}")
             import traceback
             traceback.print_exc()
-            self.predictor = None
+            self.classifier = None
+            self.pdf_extractor = None
         
     def extract_text_from_pdf(self, file_stream):
         """Extract text from PDF file"""
         import tempfile
         import os
         import time
+
+        if self.pdf_extractor is None:
+            raise Exception("PDF extractor not initialized - model failed to load")
 
         temp_path = None
         try:
@@ -81,6 +82,9 @@ class WebDocumentPredictor:
             
             # Extract text
             text = self.pdf_extractor.extract_text(temp_path)
+            
+            if text is None:
+                raise Exception("PDF extraction returned None - could not extract text from PDF")
             
             # Try to delete temp file
             for _ in range(3):  # Try 3 times
@@ -105,6 +109,8 @@ class WebDocumentPredictor:
     def extract_text_from_pdf_file(self, filepath):
         """Extract text from a PDF file path"""
         try:
+            if self.pdf_extractor is None:
+                raise Exception("PDF extractor not initialized")
             return self.pdf_extractor.extract_text(filepath)
         except Exception as e:
             raise Exception(f"PDF file extraction error: {str(e)}")
@@ -126,40 +132,63 @@ class WebDocumentPredictor:
         return text
     
     def predict(self, text):
-        """Predict document class using your new predictor"""
+        """Predict document class using multi-model classifier"""
         if not text or len(text.strip()) < 10:
             return self._create_error_result("Text too short")
         
         try:
-            # Use your new predictor
-            if self.predictor is None:
+            # Use multi-model classifier
+            if self.classifier is None:
                 return self._create_error_result("Model not loaded")
             
-            result = self.predictor.predict_single(text)
+            # Get predictions from all models
+            results = self.classifier.predict_all(text)
             
-            if result['status'] == 'success':
-                return {
-                    'success': True,
-                    'template': result['predicted_label'],
-                    'template_confidence': round(result['confidence'] * 100, 1),
-                    'alternative_templates': [
-                        {
-                            'template': pred['label'],
-                            'confidence': round(pred['confidence'] * 100, 1)
-                        }
-                        for pred in result['top_predictions'][1:]  # Skip first (it's the main prediction)
-                    ],
-                    'scores': {},  # Empty since we're not grading
-                    'overall_score': 0.0,
-                    'analysis': self._generate_analysis(result['predicted_label']),
-                    'word_count': len(text.split()),
-                    'char_count': len(text),
-                    'all_probabilities': result['all_probabilities']
+            # Find the best prediction (highest confidence)
+            best_label = None
+            best_confidence = 0
+            all_predictions = []
+            
+            for model_name, prediction in results.items():
+                label = prediction['label']
+                confidence = prediction['confidence']
+                all_predictions.append({
+                    'model': model_name,
+                    'label': label,
+                    'confidence': confidence
+                })
+                
+                # Track best prediction
+                if confidence > best_confidence:
+                    best_confidence = confidence
+                    best_label = label
+            
+            # Sort by confidence for top predictions
+            sorted_predictions = sorted(all_predictions, key=lambda x: x['confidence'], reverse=True)
+            
+            # Format all models predictions for side-by-side display
+            all_models_details = [
+                {
+                    'model': p['model'],
+                    'label': p['label'],
+                    'confidence': round(p['confidence'] * 100, 1),
+                    'is_best': p == sorted_predictions[0]
                 }
-            else:
-                return self._create_error_result(result.get('error', 'Prediction failed'))
+                for p in sorted_predictions
+            ]
+            
+            return {
+                'success': True,
+                'prediction': best_label,
+                'confidence': round(best_confidence * 100, 1),
+                'all_models': all_models_details,
+                'word_count': len(text.split()),
+                'char_count': len(text)
+            }
                 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return self._create_error_result(f"Prediction error: {str(e)}")
     
     def _generate_analysis(self, predicted_label):
@@ -315,9 +344,9 @@ def analyze_multiple():
                     results.append({
                         'filename': file.filename,
                         'status': 'success',
-                        'prediction': prediction['template'],
-                        'confidence': prediction['template_confidence'],
-                        'top_predictions': prediction['alternative_templates']
+                        'prediction': prediction.get('prediction'),
+                        'confidence': prediction.get('confidence'),
+                        'all_models': prediction.get('all_models', [])
                     })
                 else:
                     results.append({
@@ -327,6 +356,8 @@ def analyze_multiple():
                     })
                     
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 results.append({
                     'filename': file.filename,
                     'status': 'failed',
@@ -349,28 +380,27 @@ def analyze_multiple():
 def health_check():
     return jsonify({
         'status': 'healthy', 
-        'model_loaded': predictor.predictor is not None,
+        'model_loaded': predictor.classifier is not None,
         'labels': config.LABELS if ML_AVAILABLE else []
     })
 
 @app.route('/debug')
 def debug_info():
     """Debug information about model state"""
-    model_path = Path(__file__).parent.parent / "models" / "trained_model"
-    model_exists = model_path.exists()
+    model_path = Path(__file__).parent.parent / "models"
     
     debug_info = {
-        'model_exists': model_exists,
         'model_path': str(model_path),
-        'using_trained_model': predictor.predictor is not None,
-        'available_labels': config.LABELS if ML_AVAILABLE else []
+        'classifier_loaded': predictor.classifier is not None,
+        'available_labels': config.LABELS if ML_AVAILABLE else [],
+        'models_in_dir': []
     }
     
-    if model_exists:
+    if model_path.exists():
         try:
-            debug_info['files_in_model_dir'] = os.listdir(str(model_path))
+            debug_info['models_in_dir'] = os.listdir(str(model_path))
         except:
-            debug_info['files_in_model_dir'] = []
+            debug_info['models_in_dir'] = []
     
     return jsonify(debug_info)
 
@@ -391,29 +421,35 @@ class BulkPDFProcessor:
                         filepath = os.path.join(root, file)
                         try:
                             text = self.predictor.extract_text_from_pdf_file(filepath)
+                            if not text:
+                                results.append({
+                                    'filename': file,
+                                    'status': 'failed',
+                                    'error': 'No text extracted from PDF'
+                                })
+                                continue
+                            
                             prediction = self.predictor.predict(text)
                             
                             if prediction['success']:
                                 results.append({
                                     'filename': file,
-                                    'prediction': prediction.get('template'),
-                                    'confidence': prediction.get('template_confidence'),
                                     'status': 'success',
-                                    'analysis': prediction.get('analysis', [])[:2]  # First 2 analysis points
+                                    'prediction': prediction.get('prediction'),
+                                    'confidence': prediction.get('confidence'),
+                                    'all_models': prediction.get('all_models', [])
                                 })
                             else:
                                 results.append({
                                     'filename': file,
-                                    'prediction': 'error',
-                                    'error': prediction.get('error', 'Unknown error'),
-                                    'status': 'failed'
+                                    'status': 'failed',
+                                    'error': prediction.get('error', 'Unknown error')
                                 })
                         except Exception as e:
                             results.append({
                                 'filename': file,
-                                'prediction': 'error',
-                                'error': str(e),
-                                'status': 'failed'
+                                'status': 'failed',
+                                'error': str(e)
                             })
         return results
 
@@ -433,9 +469,8 @@ class BulkPDFProcessor:
                 except Exception as e:
                     results.append({
                         'filename': 'unknown',
-                        'prediction': 'error',
-                        'error': str(e),
-                        'status': 'failed'
+                        'status': 'failed',
+                        'error': str(e)
                     })
         return results
 
@@ -443,29 +478,34 @@ class BulkPDFProcessor:
         """Process single PDF file storage"""
         try:
             text = self.predictor.extract_text_from_pdf(file_storage)
+            if not text:
+                return {
+                    'filename': file_storage.filename,
+                    'status': 'failed',
+                    'error': 'No text extracted'
+                }
+            
             prediction = self.predictor.predict(text)
             
             if prediction['success']:
                 return {
                     'filename': file_storage.filename,
-                    'prediction': prediction.get('template'),
-                    'confidence': prediction.get('template_confidence'),
                     'status': 'success',
-                    'analysis': prediction.get('analysis', [])[:2]
+                    'prediction': prediction.get('prediction'),
+                    'confidence': prediction.get('confidence'),
+                    'all_models': prediction.get('all_models', [])
                 }
             else:
                 return {
                     'filename': file_storage.filename,
-                    'prediction': 'error',
-                    'error': prediction.get('error', 'Prediction failed'),
-                    'status': 'failed'
+                    'status': 'failed',
+                    'error': prediction.get('error', 'Prediction failed')
                 }
         except Exception as e:
             return {
                 'filename': file_storage.filename,
-                'prediction': 'error',
-                'error': str(e),
-                'status': 'failed'
+                'status': 'failed',
+                'error': str(e)
             }
 
 @app.route('/bulk_upload', methods=['POST'])
@@ -481,8 +521,8 @@ def bulk_upload():
         if len(files) > 50:
             return jsonify({'success': False, 'error': f'Maximum 50 files allowed. You uploaded {len(files)}.'})
 
-        if predictor is None:
-            return jsonify({'success': False, 'error': 'Predictor not initialized on server'})
+        if predictor is None or predictor.classifier is None:
+            return jsonify({'success': False, 'error': 'Classifier not initialized on server'})
 
         bulk_processor = BulkPDFProcessor(predictor)
         results = bulk_processor.process_multiple_files(files)
@@ -491,14 +531,8 @@ def bulk_upload():
         summary = {
             'total_files': len(files),
             'successful': len([r for r in results if r['status'] == 'success']),
-            'failed': len([r for r in results if r['status'] == 'failed']),
-            'predictions_distribution': {}
+            'failed': len([r for r in results if r['status'] == 'failed'])
         }
-        
-        for result in results:
-            if result['status'] == 'success':
-                pred = result['prediction']
-                summary['predictions_distribution'][pred] = summary['predictions_distribution'].get(pred, 0) + 1
 
         return jsonify({
             'success': True, 
@@ -518,23 +552,25 @@ def download_results():
         
         results = data['results']
         
-        import csv
-        from io import StringIO
         output = StringIO()
         writer = csv.writer(output)
         
         # Write header
-        writer.writerow(['Filename', 'Document Type', 'Confidence %', 'Status', 'Analysis'])
+        writer.writerow(['Filename', 'Status', 'Document Type', 'Confidence %', 'Alternative Predictions'])
         
         # Write data
         for result in results:
-            analysis = ' | '.join(result.get('analysis', [])) if result.get('analysis') else ''
+            if result['status'] == 'success':
+                models_str = ' | '.join([f"{m['model']}: {m['label']} ({m['confidence']}%)" for m in result.get('all_models', [])])
+            else:
+                models_str = result.get('error', 'Error')
+            
             writer.writerow([
                 result.get('filename', ''),
+                result.get('status', ''),
                 result.get('prediction', ''),
                 result.get('confidence', ''),
-                result.get('status', ''),
-                analysis
+                models_str
             ])
         
         output.seek(0)
@@ -559,7 +595,8 @@ if __name__ == '__main__':
     else:
         print("[FAIL] ML modules not available")
     
-    print(f"[OK] Predictor initialized: {predictor.predictor is not None}")
+    print(f"[OK] Classifier initialized: {predictor.classifier is not None}")
+    print(f"[OK] PDF extractor initialized: {predictor.pdf_extractor is not None}")
     print("[OK] Supported file formats: PDF, TXT")
     print("[OK] Bulk processing: Enabled (up to 50 files)")
     print("="*60)
