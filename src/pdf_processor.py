@@ -131,7 +131,7 @@ class PDFTextExtractor:
         try:
             with fitz.open(pdf_path) as doc:
                 page_count = len(doc)
-        except:
+        except Exception:
             page_count = 0
         
         return {
@@ -201,7 +201,7 @@ class PDFDatasetBuilder:
                     data.append(entry)
                     logger.info(f"    ✓ Extracted {len(result['text'])} chars")
                 else:
-                    logger.warning(f"    ✗ Failed to extract text")
+                    logger.warning("    ✗ Failed to extract text")
         
         # Create DataFrame
         if data:

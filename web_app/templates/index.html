@@ -722,17 +722,17 @@
                     <div class="models-comparison">
                         <div class="models-title">📊 Model Predictions</div>
                         ${result.all_models.map(model => {
-                            // Determine status: HIT, MISS, or UNKNOWN (no labeled ground truth)
-                            let statusClass, statusText;
-                            if (!isValidGroundTruth) {
-                                statusClass = 'unknown';
-                                statusText = 'UNKNOWN';
-                            } else {
-                                const isHit = model.label === groundTruth;
-                                statusClass = isHit ? 'hit' : 'miss';
-                                statusText = isHit ? 'HIT' : 'MISS';
-                            }
-                            return `
+                    // Determine status: HIT, MISS, or UNKNOWN (no labeled ground truth)
+                    let statusClass, statusText;
+                    if (!isValidGroundTruth) {
+                        statusClass = 'unknown';
+                        statusText = 'UNKNOWN';
+                    } else {
+                        const isHit = model.label === groundTruth;
+                        statusClass = isHit ? 'hit' : 'miss';
+                        statusText = isHit ? 'HIT' : 'MISS';
+                    }
+                    return `
                                 <div class="model-prediction ${statusClass}">
                                     <div class="model-info">
                                         <div class="model-name">${model.model}</div>

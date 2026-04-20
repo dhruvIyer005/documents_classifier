@@ -33,7 +33,7 @@ class MultiModelClassifier:
                 self.models[display_name] = AutoModelForSequenceClassification.from_pretrained(model_path)
                 self.models[display_name] = self.models[display_name].to(self.device)
                 self.models[display_name].eval()
-                logger.info(f"    ✓ OK")
+                logger.info("    ✓ OK")
             except Exception as e:
                 logger.warning(f"    ✗ Failed: {e}")
         
@@ -44,16 +44,16 @@ class MultiModelClassifier:
         logger.info(f"Loaded {len(self.models)} models")
     
     def predict_single_model(self, text: str, model_name: str) -> tuple:
-        """Predict with one model. Returns (label, confidence)"""
+        """Predict with one model. Returns (label, confidence, probabilities_tensor)"""
         model = self.models[model_name]
         tokenizer = self.tokenizers[model_name]
         
         if not text or len(text) < 50:
-            return "unknown", 0.0
+            return "unknown", 0.0, torch.zeros(config.NUM_LABELS)
         
-        # Tokenize
+        # Tokenize (Limit to max_length for the model, usually 512 tokens)
         inputs = tokenizer(
-            text[:5000],
+            text,
             truncation=True,
             max_length=config.MAX_LENGTH,
             return_tensors="pt"
@@ -71,21 +71,40 @@ class MultiModelClassifier:
         confidence = probs[0, pred_id].item()
         label = config.ID2LABEL[pred_id]
         
-        return label, confidence
+        return label, confidence, probs[0]
     
     def predict_all(self, text: str) -> Dict[str, Dict]:
-        """Run all 2 models and return results."""
+        """Run all models, plus a Soft Voting Ensemble, and return results."""
         results = {}
+        all_probs = []
+
         for model_name in self.models.keys():
             try:
-                label, confidence = self.predict_single_model(text, model_name)
+                label, confidence, probs = self.predict_single_model(text, model_name)
                 results[model_name] = {
                     "label": label,
                     "confidence": round(confidence, 4),
                 }
+                all_probs.append(probs)
             except Exception as e:
                 logger.error(f"Error with {model_name}: {e}")
                 results[model_name] = {"label": "Error", "confidence": 0.0}
+
+        # Add Ensemble (Soft Voting)
+        if all_probs:
+            try:
+                # Average the probabilities across all successful models
+                avg_probs = torch.stack(all_probs).mean(dim=0)
+                ensemble_pred_id = torch.argmax(avg_probs, dim=-1).item()
+                ensemble_confidence = avg_probs[ensemble_pred_id].item()
+                ensemble_label = config.ID2LABEL[ensemble_pred_id]
+
+                results["Ensemble (Soft Vote)"] = {
+                    "label": ensemble_label,
+                    "confidence": round(ensemble_confidence, 4),
+                }
+            except Exception as e:
+                logger.error(f"Error computing ensemble: {e}")
 
         return results
 

@@ -68,16 +68,17 @@ class TextProcessor:
                 return bool(re.match(r"^\s*\d+\s*$", line))
 
             cleaned_pages: List[str] = []
-            for lines in page_lines:
+            for page_idx, lines in enumerate(page_lines):
                 keep: List[str] = []
                 stop_refs = False
                 for ln in lines:
                     low = ln.lower()
                     if is_page_number(ln):
                         continue
-                    if ln in repeated:
+                    # Keep headers/footers on the first page exclusively to retain DOIs and Copyrights (ACM/IEEE detection)
+                    if page_idx > 0 and ln in repeated:
                         continue
-                    if "references" == low or low.startswith("references " ):
+                    if "references" == low or low.startswith("references "):
                         stop_refs = True
                         continue
                     if stop_refs:

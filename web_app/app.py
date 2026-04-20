@@ -4,10 +4,8 @@
 import os
 import sys
 from flask import Flask, render_template, request, jsonify, Response
-import torch
 import tempfile
 import zipfile
-import json
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import csv
@@ -92,7 +90,7 @@ class WebDocumentPredictor:
                     if temp_path and os.path.exists(temp_path):
                         os.unlink(temp_path)
                         break
-                except:
+                except Exception:
                     time.sleep(0.1)  # Wait and retry
             
             return text
@@ -102,7 +100,7 @@ class WebDocumentPredictor:
             if temp_path and os.path.exists(temp_path):
                 try:
                     os.unlink(temp_path)
-                except:
+                except Exception:
                     pass
             raise Exception(f"PDF extraction error: {str(e)}")
     
@@ -399,7 +397,7 @@ def debug_info():
     if model_path.exists():
         try:
             debug_info['models_in_dir'] = os.listdir(str(model_path))
-        except:
+        except Exception:
             debug_info['models_in_dir'] = []
     
     return jsonify(debug_info)
@@ -590,7 +588,7 @@ if __name__ == '__main__':
     print("="*60)
     
     if ML_AVAILABLE:
-        print(f"[OK] ML modules loaded")
+        print("[OK] ML modules loaded")
         print(f"[OK] Target labels: {config.LABELS}")
     else:
         print("[FAIL] ML modules not available")
